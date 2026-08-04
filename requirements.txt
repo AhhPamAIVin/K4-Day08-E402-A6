@@ -29,6 +29,8 @@ openai>=1.30.0
 
 # Group project - UI
 streamlit>=1.35.0
+plotly>=5.20.0
+pandas>=2.0.0
 
 # Group project - Evaluation
 # Ragas 0.1.x pins NumPy 1.x, which has no Python 3.14 wheel.

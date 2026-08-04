@@ -70,70 +70,22 @@ if "pending_query" not in st.session_state:
     st.session_state.pending_query = None
 
 # =============================================================================
-# MAIN CHAT AREA
+# TABS — Chatbot vs Analytics
 # =============================================================================
 
-st.title("🛒 E-commerce Support RAG Chatbot")
-st.caption("Hệ thống hỏi đáp chính sách e-commerce và trợ giúp khách hàng")
+tab_chat, tab_analytics = st.tabs(["💬 Chatbot", "📊 Technical Analytics & Lab Insights"])
 
-# Hiển thị lịch sử chat
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-        if msg["role"] == "assistant" and "sources" in msg and msg["sources"]:
-            with st.expander(f"📚 Nguồn tham khảo ({len(msg['sources'])} chunks)"):
-                for i, src in enumerate(msg["sources"], 1):
-                    meta = src.get("metadata", {})
-                    source_name = meta.get("source", "Unknown")
-                    doc_type = meta.get("type", "unknown")
-                    score = src.get("score", 0)
-                    st.markdown(f"**[{i}] {source_name}** `{doc_type}` | score: `{score:.4f}`")
-                    st.text(src.get("content", "")[:300] + "...")
-                    st.divider()
+with tab_chat:
+    st.title("🛒 E-commerce Support RAG Chatbot")
+    st.caption("Hệ thống hỏi đáp chính sách e-commerce và trợ giúp khách hàng")
 
-# =============================================================================
-# QUERY HANDLING
-# =============================================================================
-
-user_input = st.chat_input("Nhập câu hỏi của bạn về chính sách/hỗ trợ e-commerce...")
-query = user_input or st.session_state.pending_query
-
-if query:
-    st.session_state.pending_query = None
-
-    # Hiển thị câu hỏi của user
-    st.session_state.messages.append({"role": "user", "content": query})
-    with st.chat_message("user"):
-        st.markdown(query)
-
-    # Sinh câu trả lời từ RAG Pipeline
-    with st.chat_message("assistant"):
-        with st.spinner("Đang tìm kiếm tài liệu và tổng hợp câu trả lời..."):
-            try:
-                # TODO (Học viên): Tích hợp hàm sinh câu trả lời từ Task 10
-                # Ví dụ:
-                # from src.task10_generation import generate_with_citation
-                # response = generate_with_citation(query, top_k=top_k)
-                # answer = response["answer"]
-                # sources = response.get("sources", [])
-
-                from src.task10_generation import generate_with_citation
-                response = generate_with_citation(query, top_k=top_k)
-                answer = response.get("answer", "Chưa thể trả lời.")
-                sources = response.get("sources", [])
-
-            except NotImplementedError:
-                answer = "⚠️ **Task 10 chưa được implement.** Hãy hoàn thành `src/task10_generation.py` để kết nối pipeline vào UI!"
-                sources = []
-            except Exception as e:
-                answer = f"❌ **Lỗi khi chạy RAG Pipeline:** {e}"
-                sources = []
-
-            st.markdown(answer)
-
-            if sources:
-                with st.expander(f"📚 Nguồn tham khảo ({len(sources)} chunks)"):
-                    for i, src in enumerate(sources, 1):
+    # Hiển thị lịch sử chat
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+            if msg["role"] == "assistant" and "sources" in msg and msg["sources"]:
+                with st.expander(f"📚 Nguồn tham khảo ({len(msg['sources'])} chunks)"):
+                    for i, src in enumerate(msg["sources"], 1):
                         meta = src.get("metadata", {})
                         source_name = meta.get("source", "Unknown")
                         doc_type = meta.get("type", "unknown")
@@ -142,8 +94,50 @@ if query:
                         st.text(src.get("content", "")[:300] + "...")
                         st.divider()
 
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": answer,
-        "sources": sources,
-    })
+    user_input = st.chat_input("Nhập câu hỏi của bạn về chính sách/hỗ trợ e-commerce...")
+    query = user_input or st.session_state.pending_query
+
+    if query:
+        st.session_state.pending_query = None
+
+        st.session_state.messages.append({"role": "user", "content": query})
+        with st.chat_message("user"):
+            st.markdown(query)
+
+        with st.chat_message("assistant"):
+            with st.spinner("Đang tìm kiếm tài liệu và tổng hợp câu trả lời..."):
+                try:
+                    from src.task10_generation import generate_with_citation
+                    response = generate_with_citation(query, top_k=top_k)
+                    answer = response.get("answer", "Chưa thể trả lời.")
+                    sources = response.get("sources", [])
+
+                except NotImplementedError:
+                    answer = "⚠️ **Task 10 chưa được implement.** Hãy hoàn thành `src/task10_generation.py` để kết nối pipeline vào UI!"
+                    sources = []
+                except Exception as e:
+                    answer = f"❌ **Lỗi khi chạy RAG Pipeline:** {e}"
+                    sources = []
+
+                st.markdown(answer)
+
+                if sources:
+                    with st.expander(f"📚 Nguồn tham khảo ({len(sources)} chunks)"):
+                        for i, src in enumerate(sources, 1):
+                            meta = src.get("metadata", {})
+                            source_name = meta.get("source", "Unknown")
+                            doc_type = meta.get("type", "unknown")
+                            score = src.get("score", 0)
+                            st.markdown(f"**[{i}] {source_name}** `{doc_type}` | score: `{score:.4f}`")
+                            st.text(src.get("content", "")[:300] + "...")
+                            st.divider()
+
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": answer,
+            "sources": sources,
+        })
+
+with tab_analytics:
+    from analytics_tab import render_analytics_tab
+    render_analytics_tab(top_k=top_k)
