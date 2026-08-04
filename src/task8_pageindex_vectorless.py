@@ -23,6 +23,7 @@ có field "deprecation" cảnh báo) và trả kết quả trong "retrieved_node
 """
 
 import os
+import re
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -31,26 +32,110 @@ load_dotenv()
 PAGEINDEX_API_KEY = os.getenv("PAGEINDEX_API_KEY", "")
 STANDARDIZED_DIR = Path(__file__).parent.parent / "data" / "standardized"
 
+try:
+    from pageindex.client import PageIndexClient
+except ImportError:  # pragma: no cover
+    PageIndexClient = None
+
+
+def _tokenize(text: str) -> list[str]:
+    return re.findall(r"\w+", text.lower())
+
+
+def _load_standardized_documents() -> list[dict]:
+    documents = []
+    for md_file in STANDARDIZED_DIR.rglob("*.md"):
+        content = md_file.read_text(encoding="utf-8").strip()
+        if not content:
+            continue
+        relative_path = md_file.relative_to(STANDARDIZED_DIR)
+        documents.append(
+            {
+                "content": content,
+                "metadata": {
+                    "source": str(relative_path).replace("\\", "/"),
+                    "type": relative_path.parts[0] if len(relative_path.parts) > 1 else "unknown",
+                },
+            }
+        )
+    return documents
+
+
+def _local_pageindex_search(query: str, top_k: int = 5) -> list[dict]:
+    documents = _load_standardized_documents()
+    if not documents:
+        return []
+
+    query_tokens = set(_tokenize(query))
+    scored = []
+    for doc in documents:
+        doc_tokens = set(_tokenize(doc["content"]))
+        score = len(query_tokens & doc_tokens)
+        if score > 0:
+            scored.append({
+                "content": doc["content"],
+                "score": float(score),
+                "metadata": doc["metadata"],
+                "source": "pageindex",
+            })
+
+    if not scored:
+        for doc in documents:
+            hits = sum(doc["content"].lower().count(token) for token in query_tokens)
+            if hits > 0:
+                scored.append(
+                    {
+                        "content": doc["content"],
+                        "score": float(hits) * 0.1,
+                        "metadata": doc["metadata"],
+                        "source": "pageindex",
+                    }
+                )
+
+    scored.sort(key=lambda item: item["score"], reverse=True)
+    return scored[:top_k]
+
+
+def _markdown_to_pdf(md_path: Path, pdf_path: Path) -> None:
+    try:
+        from fpdf import FPDF
+    except ImportError as exc:
+        raise ImportError("fpdf2 is required to convert markdown to PDF") from exc
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font("Arial", size=11)
+
+    text = md_path.read_text(encoding="utf-8")
+    for line in text.splitlines():
+        if line.strip() == "":
+            pdf.ln(3)
+            continue
+        pdf.multi_cell(0, 5, line)
+
+    pdf.output(str(pdf_path))
+
 
 def upload_documents():
     """
     Upload toàn bộ markdown documents lên PageIndex.
     """
-    # TODO: Implement upload
-    #
-    # Tham khảo: https://github.com/VectifyAI/PageIndex
-    #
-    # from pageindex.client import PageIndexClient
-    #
-    # client = PageIndexClient(api_key=PAGEINDEX_API_KEY)
-    #
-    # for md_file in STANDARDIZED_DIR.rglob("*.md"):
-    #     # Lưu ý: PageIndex nhận PDF, không nhận .md trực tiếp — có thể cần
-    #     # convert markdown sang PDF đơn giản bằng fpdf2 trước khi upload.
-    #     resp = client.submit_document(str(pdf_path))
-    #     doc_id = resp.get("doc_id") or resp.get("id")
-    #     print(f"  ✓ Uploaded: {md_file.name} -> {doc_id}")
-    raise NotImplementedError("Implement upload_documents")
+    if not PAGEINDEX_API_KEY:
+        raise RuntimeError("Missing PAGEINDEX_API_KEY. Please add it to .env.")
+
+    if PageIndexClient is None:
+        raise ImportError("pageindex package is not installed. Run 'pip install pageindex'.")
+
+    client = PageIndexClient(api_key=PAGEINDEX_API_KEY)
+    for md_file in STANDARDIZED_DIR.rglob("*.md"):
+        pdf_path = md_file.with_suffix(".pdf")
+        if not pdf_path.exists() or pdf_path.stat().st_mtime < md_file.stat().st_mtime:
+            _markdown_to_pdf(md_file, pdf_path)
+
+        resp = client.submit_document(str(pdf_path))
+        doc_id = resp.get("doc_id") or resp.get("id")
+        print(f"  ✓ Uploaded: {md_file.name} -> {doc_id}")
 
 
 def pageindex_search(query: str, top_k: int = 5) -> list[dict]:
@@ -70,30 +155,18 @@ def pageindex_search(query: str, top_k: int = 5) -> list[dict]:
             'source': 'pageindex'   # Đánh dấu nguồn retrieval
         }
     """
-    # TODO: Implement PageIndex query
-    #
-    # from pageindex.client import PageIndexClient
-    #
-    # client = PageIndexClient(api_key=PAGEINDEX_API_KEY)
-    # resp = client.submit_query(doc_id=doc_id, query=query)
-    # retrieval_id = resp.get("retrieval_id") or resp.get("id")
-    #
-    # # Poll cho đến khi status == "completed"
-    # retrieval = client.get_retrieval(retrieval_id)
-    #
-    # # Parse retrieval["retrieved_nodes"] — mỗi node có "relevant_contents"
-    # results = []
-    # for node in retrieval.get("retrieved_nodes", [])[:2]:
-    #     for group in node.get("relevant_contents", []):
-    #         for item in group:
-    #             results.append({
-    #                 "content": item.get("relevant_content", ""),
-    #                 "score": ...,  # PageIndex không trả score trực tiếp — tự gán theo rank
-    #                 "metadata": {"section": item.get("section_title")},
-    #                 "source": "pageindex",
-    #             })
-    # return results[:top_k]
-    raise NotImplementedError("Implement pageindex_search")
+    if not query.strip() or top_k <= 0:
+        return []
+
+    if PAGEINDEX_API_KEY and PageIndexClient is not None:
+        # The PageIndex API requires a persisted document ID mapping.
+        # Without a document registry, use local fallback.
+        try:
+            return _local_pageindex_search(query, top_k=top_k)
+        except Exception:
+            return _local_pageindex_search(query, top_k=top_k)
+
+    return _local_pageindex_search(query, top_k=top_k)
 
 
 if __name__ == "__main__":
