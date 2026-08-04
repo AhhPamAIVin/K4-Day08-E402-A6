@@ -57,7 +57,36 @@ def semantic_search(query: str, top_k: int = 10) -> list[dict]:
     #
     # output.sort(key=lambda x: x["score"], reverse=True)
     # return output[:top_k]
-    raise NotImplementedError("Implement semantic_search")
+    if not query.strip() or top_k <= 0:
+        return []
+
+    from .task4_chunking_indexing import embed_texts, get_collection
+
+    collection = get_collection()
+    collection_size = collection.count()
+    if collection_size == 0:
+        return []
+
+    query_vector = embed_texts([query])[0]
+    results = collection.query(
+        query_embeddings=[query_vector],
+        n_results=min(top_k, collection_size),
+        include=["documents", "metadatas", "distances"],
+    )
+    output = [
+        {
+            "content": document,
+            "score": round(1.0 - float(distance), 4),
+            "metadata": metadata,
+        }
+        for document, metadata, distance in zip(
+            results["documents"][0],
+            results["metadatas"][0],
+            results["distances"][0],
+        )
+    ]
+    output.sort(key=lambda item: item["score"], reverse=True)
+    return output[:top_k]
 
 
 if __name__ == "__main__":
