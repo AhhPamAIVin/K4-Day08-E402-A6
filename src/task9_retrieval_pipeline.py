@@ -35,10 +35,15 @@ from .task8_pageindex_vectorless import pageindex_search
 # CONFIGURATION
 # =============================================================================
 
-# TODO: Calibrate threshold này bằng cách tự đo điểm cosine của semantic_search
-# cho câu hỏi liên quan vs câu hỏi lạc đề (xem ghi chú ở trên) — ĐỪNG copy nguyên
-# giá trị mẫu, mỗi corpus/embedding model sẽ cho khoảng điểm khác nhau.
-SCORE_THRESHOLD = 0.3   # Nếu best score (cosine gốc) < threshold → fallback PageIndex
+# Threshold đã calibrate bằng cách đo best cosine của semantic_search trên chính
+# corpus này (text-embedding-3-small):
+#   Câu hỏi tiếng Việt đúng domain : 0.481 - 0.648  (thấp nhất: "Cần bằng chứng gì khi hoàn tiền?")
+#   Câu hỏi lạc đề / rác           : 0.192 - 0.388  (cao nhất: "công thức nấu phở bò")
+#   => chọn 0.46, nằm giữa hai nhóm.
+# Lưu ý: corpus toàn tiếng Việt nên câu hỏi tiếng Anh chỉ đạt 0.23 - 0.49, chồng lấn
+# với nhóm rác → sẽ kích hoạt fallback. Hệ thống thiết kế để hỏi bằng tiếng Việt
+# (system prompt Task 10 cũng trả lời tiếng Việt).
+SCORE_THRESHOLD = 0.46  # Nếu best score (cosine gốc) < threshold → fallback PageIndex
 DEFAULT_TOP_K = 5
 RERANK_METHOD = "rrf"  # "cross_encoder" | "mmr" | "rrf"
 
@@ -103,14 +108,42 @@ def retrieve(
     #         return fallback
     #
     # return final_results[:top_k]
-    raise NotImplementedError("Implement retrieve")
+    if not query.strip() or top_k <= 0:
+        return []
+
+    # Step 1: hai ranker chạy trên cùng tập chunk
+    dense_results = semantic_search(query, top_k=top_k * 2)
+    sparse_results = lexical_search(query, top_k=top_k * 2)
+
+    # Step 2: merge bằng RRF (chỉ dựa trên thứ hạng, không trộn 2 thang điểm khác nhau)
+    merged = rerank_rrf([dense_results, sparse_results], top_k=top_k * 2)
+    for item in merged:
+        item["source"] = "hybrid"
+
+    # Step 3: rerank
+    if use_reranking and merged:
+        final_results = rerank(query, merged, top_k=top_k, method=RERANK_METHOD)
+        for item in final_results:
+            item["source"] = "hybrid"
+    else:
+        final_results = merged[:top_k]
+
+    # Step 4: quyết định fallback bằng ĐIỂM COSINE GỐC, không phải điểm RRF
+    best_score = dense_results[0]["score"] if dense_results else 0.0
+    if best_score < score_threshold:
+        print(f"  ! Semantic best score ({best_score:.3f}) < threshold ({score_threshold})")
+        fallback = pageindex_search(query, top_k=top_k)
+        if fallback:
+            return fallback[:top_k]
+
+    return final_results[:top_k]
 
 
 if __name__ == "__main__":
     test_queries = [
-        "What payment methods does Shopee support?",
-        "How do I request a return or refund?",
-        "What evidence do I need for a refund request?",
+        "Shopee hỗ trợ những phương thức thanh toán nào?",
+        "Làm sao để yêu cầu trả hàng hoặc hoàn tiền?",
+        "Những sản phẩm nào bị cấm đăng bán?",
         "xyzabc123nonsense",  # Query không có kết quả → test fallback
     ]
 

@@ -44,17 +44,24 @@ CHROMA_DIR = Path(__file__).parent.parent / "chroma_db"
 # CONFIGURATION — Giải thích lựa chọn của bạn trong comment
 # =============================================================================
 
-# TODO: Chọn chunking strategy và giải thích vì sao
-CHUNK_SIZE = 500        # Vì sao chọn 500? ...
-CHUNK_OVERLAP = 50      # Vì sao chọn 50? ...
+# Chunking strategy: RecursiveCharacterTextSplitter với size 800 / overlap 100.
+# - 800 ký tự ~ 200-250 token tiếng Việt: đủ chứa trọn 1 điều khoản chính sách
+#   (mỗi mục trong tài liệu Shopee thường 3-6 câu) mà không nhồi 2 chủ đề vào 1 chunk.
+# - overlap 100 (12.5%) giữ lại câu bắc cầu ở ranh giới chunk, tránh mất ngữ cảnh
+#   khi 1 quy định bị cắt ngang giữa chừng.
+# - "recursive" thay vì "markdown_header": corpus có cả PDF convert (heading không
+#   đều) lẫn news crawl, tách theo heading sẽ ra chunk dài ngắn rất lệch.
+CHUNK_SIZE = 800
+CHUNK_OVERLAP = 100
 CHUNKING_METHOD = "recursive"  # "recursive" | "markdown_header" | "semantic"
 
-# TODO: Chọn embedding model và giải thích
+# Embedding: OpenAI text-embedding-3-small (1536 dim) — chạy qua API, không tải model
+# local (máy lab không đủ RAM cho bge-m3), hỗ trợ tiếng Việt tốt, giá rẻ.
 EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "openai").lower()
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 EMBEDDING_DIM = 1536
 
-# TODO: Chọn vector store
+# Vector store: ChromaDB — local persistent, không cần Docker, có sẵn cosine space.
 VECTOR_STORE = "chromadb"  # "chromadb" | "weaviate" | "faiss"
 COLLECTION_NAME = "ecommerce_support_docs"
 
@@ -96,6 +103,23 @@ def load_documents() -> list[dict]:
     return documents
 
 
+def is_useful_chunk(text: str) -> bool:
+    """Loại chunk rác từ trang crawl: menu, footer, danh sách link/ảnh.
+
+    Trang news crawl về kèm nhiều điều hướng (`[text](url)`, `![img](url)`). Những
+    chunk này không mang thông tin chính sách nhưng vẫn được embed và có thể lọt vào
+    top-k, làm nhiễu context gửi cho LLM ở Task 10.
+    """
+    import re
+
+    stripped = text.strip()
+    if len(stripped) < 80:
+        return False
+
+    markup_chars = sum(len(m) for m in re.findall(r"!?\[[^\]]*\]\([^)]*\)", stripped))
+    return markup_chars / len(stripped) < 0.5
+
+
 def chunk_documents(documents: list[dict]) -> list[dict]:
     """
     Chunk documents theo strategy đã chọn.
@@ -131,11 +155,15 @@ def chunk_documents(documents: list[dict]) -> list[dict]:
     )
     chunks = []
     for doc in documents:
-        for index, content in enumerate(splitter.split_text(doc["content"])):
+        index = 0
+        for content in splitter.split_text(doc["content"]):
+            if not is_useful_chunk(content):
+                continue
             chunks.append({
                 "content": content,
                 "metadata": {**doc["metadata"], "chunk_index": index},
             })
+            index += 1
     return chunks
 
 
