@@ -15,13 +15,10 @@ BM25 hoạt động thế nào:
     - k1=1.5 (term saturation), b=0.75 (length normalization)
 """
 
-import json
 import re
-from pathlib import Path
 
 from rank_bm25 import BM25Okapi
 
-STANDARDIZED_DIR = Path(__file__).parent.parent / "data" / "standardized"
 CORPUS: list[dict] = []  # List of {'content': str, 'metadata': dict}
 _BM25_INDEX = None
 
@@ -35,17 +32,11 @@ def _load_corpus() -> None:
     if CORPUS:
         return
 
-    for md_file in STANDARDIZED_DIR.rglob("*.md"):
-        content = md_file.read_text(encoding="utf-8").strip()
-        if not content:
-            continue
+    # Reuse Task 4's loader/chunker so lexical and semantic retrieval rank the
+    # same units. This also makes RRF deduplication by content meaningful.
+    from .task4_chunking_indexing import chunk_documents, load_documents
 
-        relative_path = md_file.relative_to(STANDARDIZED_DIR)
-        metadata = {
-            "source": str(relative_path).replace("\\", "/"),
-            "type": relative_path.parts[0] if len(relative_path.parts) > 1 else "unknown",
-        }
-        CORPUS.append({"content": content, "metadata": metadata})
+    CORPUS = chunk_documents(load_documents())
 
     if CORPUS:
         _BM25_INDEX = build_bm25_index(CORPUS)
@@ -105,68 +96,6 @@ def lexical_search(query: str, top_k: int = 10) -> list[dict]:
             break
 
     return results
-
-
-if __name__ == "__main__":
-    # Test
-    results = lexical_search("phương thức thanh toán shopee", top_k=5)
-    for r in results:
-        print(f"[{r['score']:.3f}] {r['content'][:100]}...")
-
-
-def build_bm25_index(corpus: list[dict]):
-    """
-    Xây dựng BM25 index từ corpus.
-
-    Args:
-        corpus: List of {'content': str, 'metadata': dict}
-    """
-    # TODO: Implement BM25 index
-    #
-    # from rank_bm25 import BM25Okapi
-    #
-    # # Tokenize - có thể đơn giản split(), hoặc dùng underthesea cho tiếng Việt
-    # tokenized_corpus = [doc["content"].lower().split() for doc in corpus]
-    # bm25 = BM25Okapi(tokenized_corpus)
-    # return bm25
-    raise NotImplementedError("Implement build_bm25_index")
-
-
-def lexical_search(query: str, top_k: int = 10) -> list[dict]:
-    """
-    Tìm kiếm từ khóa sử dụng BM25.
-
-    Args:
-        query: Câu truy vấn
-        top_k: Số lượng kết quả tối đa
-
-    Returns:
-        List of {
-            'content': str,
-            'score': float,      # BM25 score
-            'metadata': dict
-        }
-        Sorted by score descending.
-    """
-    # TODO: Implement lexical search
-    #
-    # tokenized_query = query.lower().split()
-    # scores = bm25.get_scores(tokenized_query)
-    #
-    # # Get top_k indices
-    # import numpy as np
-    # top_indices = np.argsort(scores)[::-1][:top_k]
-    #
-    # results = []
-    # for idx in top_indices:
-    #     if scores[idx] > 0:
-    #         results.append({
-    #             "content": CORPUS[idx]["content"],
-    #             "score": float(scores[idx]),
-    #             "metadata": CORPUS[idx]["metadata"]
-    #         })
-    # return results
-    raise NotImplementedError("Implement lexical_search")
 
 
 if __name__ == "__main__":

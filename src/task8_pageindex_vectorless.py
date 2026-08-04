@@ -1,183 +1,191 @@
-"""
-Task 8 — PageIndex Vectorless RAG.
+"""Task 8: PageIndex vectorless retrieval with a local offline fallback."""
 
-Đăng ký tài khoản tại: https://pageindex.ai/
-SDK & sample code: https://github.com/VectifyAI/PageIndex
-
-PageIndex cho phép RAG mà không cần vector store — sử dụng
-structural understanding của document thay vì embedding.
-
-Cài đặt:
-    pip install pageindex
-
-Hướng dẫn:
-    1. Đăng ký account tại pageindex.ai
-    2. Lấy API key
-    3. Upload documents
-    4. Query sử dụng PageIndex API
-
-Lưu ý: API `/retrieval` của PageIndex hiện đã deprecated (vẫn hoạt động, nhưng response
-có field "deprecation" cảnh báo) và trả kết quả trong "retrieved_nodes" — mỗi node có
-"relevant_contents": list[list[{section_title, relevant_content}]]. In response thật ra
-(json.dumps(...)) trước khi viết logic parse, đừng đoán schema từ ví dụ code cũ.
-"""
-
+import json
 import os
 import re
+import time
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
 PAGEINDEX_API_KEY = os.getenv("PAGEINDEX_API_KEY", "")
+PAGEINDEX_API_URL = os.getenv("PAGEINDEX_API_URL", "https://api.pageindex.ai").rstrip("/")
 STANDARDIZED_DIR = Path(__file__).parent.parent / "data" / "standardized"
-
-try:
-    from pageindex.client import PageIndexClient
-except ImportError:  # pragma: no cover
-    PageIndexClient = None
+PROJECT_ROOT = Path(__file__).parent.parent
+REGISTRY_PATH = PROJECT_ROOT / "pageindex_doc_ids.json"
+PAGEINDEX_PDF_DIR = PROJECT_ROOT / "pageindex_pdfs"
 
 
 def _tokenize(text: str) -> list[str]:
     return re.findall(r"\w+", text.lower())
 
 
-def _load_standardized_documents() -> list[dict]:
+def _load_documents() -> list[dict]:
     documents = []
-    for md_file in STANDARDIZED_DIR.rglob("*.md"):
+    for md_file in sorted(STANDARDIZED_DIR.rglob("*.md")):
         content = md_file.read_text(encoding="utf-8").strip()
         if not content:
             continue
-        relative_path = md_file.relative_to(STANDARDIZED_DIR)
-        documents.append(
-            {
-                "content": content,
-                "metadata": {
-                    "source": str(relative_path).replace("\\", "/"),
-                    "type": relative_path.parts[0] if len(relative_path.parts) > 1 else "unknown",
-                },
-            }
-        )
+        relative = md_file.relative_to(STANDARDIZED_DIR)
+        documents.append({
+            "content": content,
+            "metadata": {
+                "source": str(relative).replace("\\", "/"),
+                "type": relative.parts[0] if len(relative.parts) > 1 else "unknown",
+            },
+        })
     return documents
 
 
-def _local_pageindex_search(query: str, top_k: int = 5) -> list[dict]:
-    documents = _load_standardized_documents()
-    if not documents:
-        return []
-
+def _local_search(query: str, top_k: int) -> list[dict]:
     query_tokens = set(_tokenize(query))
-    scored = []
-    for doc in documents:
-        doc_tokens = set(_tokenize(doc["content"]))
-        score = len(query_tokens & doc_tokens)
-        if score > 0:
-            scored.append({
-                "content": doc["content"],
-                "score": float(score),
-                "metadata": doc["metadata"],
-                "source": "pageindex",
-            })
-
-    if not scored:
-        for doc in documents:
-            hits = sum(doc["content"].lower().count(token) for token in query_tokens)
-            if hits > 0:
-                scored.append(
-                    {
-                        "content": doc["content"],
-                        "score": float(hits) * 0.1,
-                        "metadata": doc["metadata"],
+    results = []
+    for document in _load_documents():
+        sections = re.split(r"(?m)(?=^#{1,6}\s+)", document["content"])
+        for section_index, section in enumerate(sections):
+            section = section.strip()
+            if not section:
+                continue
+            for offset in range(0, len(section), 4000):
+                passage = section[offset:offset + 4000]
+                tokens = set(_tokenize(passage))
+                score = len(query_tokens & tokens) / max(1, len(query_tokens))
+                if score:
+                    metadata = dict(document["metadata"])
+                    metadata["section_index"] = section_index
+                    results.append({
+                        "content": passage,
+                        "metadata": metadata,
+                        "score": float(score),
                         "source": "pageindex",
-                    }
-                )
-
-    scored.sort(key=lambda item: item["score"], reverse=True)
-    return scored[:top_k]
+                    })
+    results.sort(key=lambda item: item["score"], reverse=True)
+    return results[:top_k]
 
 
 def _markdown_to_pdf(md_path: Path, pdf_path: Path) -> None:
-    try:
-        from fpdf import FPDF
-    except ImportError as exc:
-        raise ImportError("fpdf2 is required to convert markdown to PDF") from exc
+    from fpdf import FPDF
 
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font("Arial", size=11)
-
-    text = md_path.read_text(encoding="utf-8")
-    for line in text.splitlines():
-        if line.strip() == "":
-            pdf.ln(3)
-            continue
-        pdf.multi_cell(0, 5, line)
-
+    candidates = [
+        Path("C:/Windows/Fonts/arial.ttf"),
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+    ]
+    font_path = next((path for path in candidates if path.exists()), None)
+    if font_path:
+        pdf.add_font("Unicode", fname=str(font_path))
+        pdf.set_font("Unicode", size=10)
+    else:
+        raise RuntimeError("Không tìm thấy font Unicode để tạo PDF cho PageIndex")
+    for line in md_path.read_text(encoding="utf-8").splitlines():
+        pdf.multi_cell(0, 5, line or " ")
     pdf.output(str(pdf_path))
 
 
-def upload_documents():
-    """
-    Upload toàn bộ markdown documents lên PageIndex.
-    """
+def _load_registry() -> dict[str, str]:
+    if not REGISTRY_PATH.exists():
+        return {}
+    return json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+
+
+def _save_registry(registry: dict[str, str]) -> None:
+    REGISTRY_PATH.write_text(
+        json.dumps(registry, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+def upload_documents() -> dict[str, str]:
+    """Upload standardized documents and persist source -> PageIndex doc_id."""
     if not PAGEINDEX_API_KEY:
-        raise RuntimeError("Missing PAGEINDEX_API_KEY. Please add it to .env.")
+        raise RuntimeError("Missing PAGEINDEX_API_KEY in .env")
+    import requests
 
-    if PageIndexClient is None:
-        raise ImportError("pageindex package is not installed. Run 'pip install pageindex'.")
+    registry = _load_registry()
+    for md_file in sorted(STANDARDIZED_DIR.rglob("*.md")):
+        source = str(md_file.relative_to(STANDARDIZED_DIR)).replace("\\", "/")
+        if source in registry:
+            continue
+        pdf_path = (PAGEINDEX_PDF_DIR / source).with_suffix(".pdf")
+        pdf_path.parent.mkdir(parents=True, exist_ok=True)
+        _markdown_to_pdf(md_file, pdf_path)
+        with pdf_path.open("rb") as file:
+            response = requests.post(
+                f"{PAGEINDEX_API_URL}/doc/",
+                headers={"api_key": PAGEINDEX_API_KEY},
+                files={"file": (pdf_path.name, file, "application/pdf")},
+                timeout=120,
+            )
+        response.raise_for_status()
+        registry[source] = response.json()["doc_id"]
+        _save_registry(registry)
+    return registry
 
-    client = PageIndexClient(api_key=PAGEINDEX_API_KEY)
-    for md_file in STANDARDIZED_DIR.rglob("*.md"):
-        pdf_path = md_file.with_suffix(".pdf")
-        if not pdf_path.exists() or pdf_path.stat().st_mtime < md_file.stat().st_mtime:
-            _markdown_to_pdf(md_file, pdf_path)
 
-        resp = client.submit_document(str(pdf_path))
-        doc_id = resp.get("doc_id") or resp.get("id")
-        print(f"  ✓ Uploaded: {md_file.name} -> {doc_id}")
+def _parse_nodes(payload: dict, source: str) -> list[dict]:
+    results = []
+    for rank, node in enumerate(payload.get("retrieved_nodes", []), 1):
+        contents = node.get("relevant_contents", [])
+        if contents and isinstance(contents[0], list):
+            contents = [item for group in contents for item in group]
+        for item in contents:
+            content = item.get("relevant_content") or item.get("content") or ""
+            if content.strip():
+                results.append({
+                    "content": content.strip(),
+                    "score": 1.0 / rank,
+                    "metadata": {
+                        "source": source,
+                        "type": source.split("/", 1)[0] if "/" in source else "unknown",
+                        "section": item.get("section_title") or node.get("title", ""),
+                        "page_index": item.get("page_index"),
+                    },
+                    "source": "pageindex",
+                })
+    return results
+
+
+def _remote_search(query: str, top_k: int) -> list[dict]:
+    import requests
+
+    results = []
+    for source, doc_id in _load_registry().items():
+        response = requests.post(
+            f"{PAGEINDEX_API_URL}/retrieval/",
+            headers={"api_key": PAGEINDEX_API_KEY},
+            json={"doc_id": doc_id, "query": query, "thinking": False},
+            timeout=60,
+        )
+        response.raise_for_status()
+        retrieval_id = response.json()["retrieval_id"]
+        for _ in range(30):
+            poll = requests.get(
+                f"{PAGEINDEX_API_URL}/retrieval/{retrieval_id}/",
+                headers={"api_key": PAGEINDEX_API_KEY},
+                timeout=30,
+            )
+            poll.raise_for_status()
+            payload = poll.json()
+            if payload.get("status") == "completed":
+                results.extend(_parse_nodes(payload, source))
+                break
+            if payload.get("status") in {"failed", "error"}:
+                break
+            time.sleep(2)
+    results.sort(key=lambda item: item["score"], reverse=True)
+    return results[:top_k]
 
 
 def pageindex_search(query: str, top_k: int = 5) -> list[dict]:
-    """
-    Vectorless retrieval sử dụng PageIndex.
-    Dùng làm fallback khi hybrid search không có kết quả tốt.
-
-    Args:
-        query: Câu truy vấn
-        top_k: Số lượng kết quả tối đa
-
-    Returns:
-        List of {
-            'content': str,
-            'score': float,
-            'metadata': dict,
-            'source': 'pageindex'   # Đánh dấu nguồn retrieval
-        }
-    """
     if not query.strip() or top_k <= 0:
         return []
-
-    if PAGEINDEX_API_KEY and PageIndexClient is not None:
-        # The PageIndex API requires a persisted document ID mapping.
-        # Without a document registry, use local fallback.
-        try:
-            return _local_pageindex_search(query, top_k=top_k)
-        except Exception:
-            return _local_pageindex_search(query, top_k=top_k)
-
-    return _local_pageindex_search(query, top_k=top_k)
+    if PAGEINDEX_API_KEY and _load_registry():
+        return _remote_search(query, top_k)
+    return _local_search(query, top_k)
 
 
 if __name__ == "__main__":
-    if not PAGEINDEX_API_KEY:
-        print("⚠ Hãy set PAGEINDEX_API_KEY trong file .env")
-        print("  Đăng ký tại: https://pageindex.ai/")
-    else:
-        print("Uploading documents...")
-        upload_documents()
-
-        print("\nTest query:")
-        results = pageindex_search("danh sách sản phẩm cấm đăng bán", top_k=3)
-        for r in results:
-            print(f"[{r['score']:.3f}] {r['content'][:100]}...")
+    upload_documents()

@@ -25,6 +25,8 @@ Logic:
     điểm số giữa hai nhóm rồi chọn ngưỡng nằm giữa.
 """
 
+from concurrent.futures import ThreadPoolExecutor
+
 from .task5_semantic_search import semantic_search
 from .task6_lexical_search import lexical_search
 from .task7_reranking import rerank, rerank_rrf
@@ -82,7 +84,7 @@ def retrieve(
             'source': str  # 'hybrid' hoặc 'pageindex'
         }
     """
-    # TODO: Implement full retrieval pipeline
+    # Pipeline outline:
     #
     # Step 1: Song song chạy semantic + lexical
     # dense_results = semantic_search(query, top_k=top_k * 2)
@@ -112,8 +114,12 @@ def retrieve(
         return []
 
     # Step 1: hai ranker chạy trên cùng tập chunk
-    dense_results = semantic_search(query, top_k=top_k * 2)
-    sparse_results = lexical_search(query, top_k=top_k * 2)
+    candidate_count = max(top_k * 2, top_k)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        dense_future = executor.submit(semantic_search, query, candidate_count)
+        sparse_future = executor.submit(lexical_search, query, candidate_count)
+        dense_results = dense_future.result()
+        sparse_results = sparse_future.result()
 
     # Step 2: merge bằng RRF (chỉ dựa trên thứ hạng, không trộn 2 thang điểm khác nhau)
     merged = rerank_rrf([dense_results, sparse_results], top_k=top_k * 2)

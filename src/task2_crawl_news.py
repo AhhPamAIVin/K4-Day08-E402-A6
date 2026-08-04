@@ -6,7 +6,10 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .task1_collect_legal_docs import fetch_page
+try:
+    from .task1_collect_legal_docs import fetch_page
+except ImportError:  # Allow: python src/task2_crawl_news.py
+    from task1_collect_legal_docs import fetch_page
 
 DATA_DIR = Path(__file__).parent.parent / "data" / "landing" / "news"
 

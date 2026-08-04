@@ -33,7 +33,7 @@ def rerank_cross_encoder(
     Returns:
         List of top_k candidates, re-scored và sorted by rerank_score descending.
     """
-    # TODO: Implement cross-encoder reranking
+    # Supported implementation options:
     #
     # Option A: Jina Reranker API
     # import requests
@@ -105,7 +105,7 @@ def rerank_mmr(
     Returns:
         List of top_k candidates selected by MMR.
     """
-    # TODO: Implement MMR
+    # MMR algorithm outline:
     #
     # selected = []
     # remaining = list(range(len(candidates)))
@@ -188,7 +188,7 @@ def rerank_rrf(
     Returns:
         List of top_k candidates sorted by RRF score descending.
     """
-    # TODO: Implement RRF
+    # RRF algorithm outline:
     #
     # rrf_scores = {}  # content -> score
     # content_map = {}  # content -> full dict

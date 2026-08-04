@@ -70,7 +70,7 @@ def semantic_search(query: str, top_k: int = 10, use_hyde: bool = False) -> list
         }
         Sorted by score descending.
     """
-    # TODO: Implement semantic search
+    # Reference implementation outline:
     #
     # Bước 1: Embed query bằng cùng model ở Task 4
     # Bước 2: Query vector store (cosine similarity)

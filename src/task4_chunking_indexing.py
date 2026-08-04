@@ -30,6 +30,7 @@ trong cùng collection, retrieval sẽ trả về kết quả rác từ dữ li�
 """
 
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -77,7 +78,7 @@ def load_documents() -> list[dict]:
     Returns:
         List of {'content': str, 'metadata': {'source': str, 'type': str}}
     """
-    # TODO: Iterate qua STANDARDIZED_DIR, đọc .md files
+    # Reference implementation outline:
     # documents = []
     # for md_file in STANDARDIZED_DIR.rglob("*.md"):
     #     content = md_file.read_text(encoding="utf-8")
@@ -88,16 +89,18 @@ def load_documents() -> list[dict]:
     #     })
     # return documents
     documents = []
-    for md_file in STANDARDIZED_DIR.rglob("*.md"):
+    for md_file in sorted(STANDARDIZED_DIR.rglob("*.md")):
         content = md_file.read_text(encoding="utf-8").strip()
         if not content:
             continue
         relative_path = md_file.relative_to(STANDARDIZED_DIR)
+        role_match = re.search(r"\*\*customer_role:\*\*\s*(buyer|seller|both)", content, re.I)
         documents.append({
             "content": content,
             "metadata": {
                 "source": str(relative_path).replace("\\", "/"),
                 "type": relative_path.parts[0] if len(relative_path.parts) > 1 else "unknown",
+                "customer_role": role_match.group(1).lower() if role_match else "both",
             },
         })
     return documents
@@ -127,7 +130,7 @@ def chunk_documents(documents: list[dict]) -> list[dict]:
     Returns:
         List of {'content': str, 'metadata': dict} — mỗi item là 1 chunk
     """
-    # TODO: Implement chunking
+    # Reference implementation outline:
     #
     # Ví dụ với RecursiveCharacterTextSplitter:
     # from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -186,7 +189,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
             model=EMBEDDING_MODEL,
             input=texts[start:start + batch_size],
         )
-        embeddings.extend(item.embedding for item in response.data)
+        embeddings.extend(item.embedding for item in sorted(response.data, key=lambda item: item.index))
     return embeddings
 
 
@@ -219,7 +222,7 @@ def index_to_vectorstore(chunks: list[dict]):
     """
     Lưu chunks vào vector store đã chọn.
     """
-    # TODO: Implement indexing
+    # Reference implementation outline:
     #
     # Ví dụ với ChromaDB:
     # import chromadb

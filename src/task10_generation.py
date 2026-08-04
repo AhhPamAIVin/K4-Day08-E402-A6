@@ -37,8 +37,8 @@ TOP_P = 0.9
 # Chọn 0.3 vì: RAG cần factual, ít sáng tạo
 TEMPERATURE = 0.3
 
-# TODO: Chọn LLM model (OpenRouter model ID)
-LLM_MODEL = "openai/gpt-4o-mini"  # hoặc model ":free" nếu chưa có credit
+LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
 
 
 # =============================================================================
@@ -50,7 +50,7 @@ khách hàng (thanh toán, đổi trả, giao hàng, quyền riêng tư, quy đ�
 
 Quy tắc bắt buộc:
 1. Chỉ sử dụng thông tin từ context được cung cấp — KHÔNG bịa đặt
-2. Mỗi khẳng định phải có trích dẫn ngay sau, ví dụ: [Returns Policy, 2026]
+2. Mỗi khẳng định phải có trích dẫn ngay sau theo đúng nhãn [S1], [S2], ... trong context
 3. Nếu context không đủ thông tin → trả lời: "Tôi không thể xác minh thông tin này từ nguồn hiện có"
 4. Trả lời bằng tiếng Việt, có cấu trúc rõ ràng theo đoạn văn
 5. Không suy luận hay mở rộng ngoài những gì được nêu trong context"""
@@ -105,7 +105,7 @@ def format_context(chunks: list[dict]) -> str:
         source = chunk.get("metadata", {}).get("source", f"Source {i}")
         doc_type = chunk.get("metadata", {}).get("type", "unknown")
         context_parts.append(
-            f"[Document {i} | Source: {source} | Type: {doc_type}]\n"
+            f"[S{i} | Source: {source} | Type: {doc_type}]\n"
             f"{chunk['content']}\n"
         )
     return "\n---\n".join(context_parts)
@@ -163,13 +163,19 @@ def generate_with_citation(query: str, top_k: int = TOP_K, chunks: list[dict] | 
 
     # Step 5: Call LLM (OpenRouter — OpenAI-compatible API)
     from openai import OpenAI
-    api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
-    if not api_key:
+    openrouter_key = os.getenv("OPENROUTER_API_KEY")
+    openai_key = os.getenv("OPENAI_API_KEY")
+    if not openrouter_key and not openai_key:
         raise RuntimeError("Thiếu OPENROUTER_API_KEY / OPENAI_API_KEY trong .env")
-    client = OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
+    if openrouter_key:
+        client = OpenAI(api_key=openrouter_key, base_url="https://openrouter.ai/api/v1")
+        model = OPENROUTER_MODEL
+    else:
+        client = OpenAI(api_key=openai_key)
+        model = LLM_MODEL
 
     response = client.chat.completions.create(
-        model=LLM_MODEL,
+        model=model,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_message}
@@ -178,7 +184,7 @@ def generate_with_citation(query: str, top_k: int = TOP_K, chunks: list[dict] | 
         top_p=TOP_P,
     )
 
-    answer = response.choices[0].message.content
+    answer = response.choices[0].message.content or ""
 
     # Step 6: Return
     return {
