@@ -1,89 +1,67 @@
-"""
-Task 2 — Crawl bài viết/hướng dẫn hỗ trợ khách hàng về thương mại điện tử.
-
-Hướng dẫn:
-    1. Crawl tối thiểu 5 bài viết từ trung tâm trợ giúp công khai của một sàn TMĐT.
-    2. Sử dụng Crawl4AI hoặc thư viện crawling tương tự.
-    3. Lưu output vào data/landing/news/
-    4. Mỗi bài lưu 1 file JSON với metadata (url, title, date_crawled, content).
-
-Cài đặt:
-    pip install crawl4ai
-    playwright install chromium   # bắt buộc — pip install crawl4ai KHÔNG tự tải browser binary,
-                                   # thiếu bước này sẽ báo lỗi
-                                   # "BrowserType.launch: Executable doesn't exist"
-
-Gợi ý chủ đề: theo dõi đơn hàng, đổi phương thức thanh toán, bằng chứng hoàn tiền,
-mua hàng xuyên biên giới.
-
-Lưu ý: một số trang help center dùng JavaScript render (SPA) — nếu crawl về chỉ thấy
-tiêu đề mà không có nội dung, đổi sang bài viết khác cùng domain thay vì cố xử lý.
-"""
+"""Task 2: crawl public Shopee help articles to structured JSON."""
 
 import asyncio
 import json
-from datetime import datetime
+import re
+from datetime import datetime, timezone
 from pathlib import Path
+
+from .task1_collect_legal_docs import fetch_page
 
 DATA_DIR = Path(__file__).parent.parent / "data" / "landing" / "news"
 
-
-def setup_directory():
-    """Tạo thư mục data/landing/news/ nếu chưa có."""
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-
-# TODO: Điền danh sách URL bài viết cần crawl
 ARTICLE_URLS = [
-    # Ví dụ (trang công khai Shopee Vietnam):
-    # "https://help.shopee.vn/portal/4/article/...",
+    "https://help.shopee.vn/portal/4/article/188931?seo=1",
+    "https://help.shopee.vn/portal/4/article/79233?seo=1",
+    "https://help.shopee.vn/portal/4/article/189477?seo=1",
+    "https://help.shopee.vn/portal/4/article/189473?seo=1",
+    "https://help.shopee.vn/portal/4/article/79198?seo=1",
 ]
 
 
+def setup_directory():
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _to_markdown(title: str, text: str) -> str:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    output = [f"# {title}", ""]
+    for line in lines:
+        if line == title or "Shopee Trung tâm trợ giúp" in line:
+            continue
+        if re.match(r"^\d+(?:\.\d+)*[.)]?\s+", line):
+            output.append(f"## {line}")
+        else:
+            output.append(line)
+    return "\n\n".join(output)
+
+
 async def crawl_article(url: str) -> dict:
-    """
-    Crawl một bài viết và trả về dict chứa metadata + content.
-
-    Returns:
-        {
-            "url": str,
-            "title": str,
-            "date_crawled": str (ISO format),
-            "content_markdown": str
-        }
-    """
-    from crawl4ai import AsyncWebCrawler
-
-    # TODO: Implement crawling logic
-    # async with AsyncWebCrawler() as crawler:
-    #     result = await crawler.arun(url=url)
-    #     return {
-    #         "url": url,
-    #         "title": result.metadata.get("title", "Unknown"),
-    #         "date_crawled": datetime.now().isoformat(),
-    #         "content_markdown": result.markdown,
-    #     }
-    raise NotImplementedError("Implement crawl_article")
+    title, text = await asyncio.to_thread(fetch_page, url)
+    return {
+        "url": url,
+        "title": title,
+        "date_crawled": datetime.now(timezone.utc).isoformat(),
+        "customer_role": "buyer",
+        "content_markdown": _to_markdown(title, text),
+    }
 
 
 async def crawl_all():
-    """Crawl toàn bộ bài viết trong ARTICLE_URLS."""
     setup_directory()
-
-    for i, url in enumerate(ARTICLE_URLS, 1):
-        print(f"[{i}/{len(ARTICLE_URLS)}] Crawling: {url}")
-        article = await crawl_article(url)
-
-        # Lưu file JSON
-        filename = f"article_{i:02d}.json"
-        filepath = DATA_DIR / filename
-        filepath.write_text(json.dumps(article, ensure_ascii=False, indent=2))
-        print(f"  ✓ Saved: {filepath}")
+    results = await asyncio.gather(*(crawl_article(url) for url in ARTICLE_URLS), return_exceptions=True)
+    failures = []
+    for index, (url, result) in enumerate(zip(ARTICLE_URLS, results), 1):
+        if isinstance(result, Exception):
+            failures.append(f"{url}: {result}")
+            print(f"  [ERROR] Failed: {url}: {result}")
+            continue
+        filepath = DATA_DIR / f"article_{index:02d}.json"
+        filepath.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"  [OK] Saved: {filepath}")
+    if failures:
+        raise RuntimeError("Không crawl đủ bài:\n" + "\n".join(failures))
 
 
 if __name__ == "__main__":
-    if not ARTICLE_URLS:
-        print("⚠ Hãy điền ARTICLE_URLS trước khi chạy!")
-        print("Gợi ý: tìm trang hướng dẫn/hỗ trợ khách hàng trên help center của sàn TMĐT")
-    else:
-        asyncio.run(crawl_all())
+    asyncio.run(crawl_all())
