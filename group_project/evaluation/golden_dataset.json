@@ -13,5 +13,90 @@
     "question": "Người bán không được đăng bán những sản phẩm nào?",
     "expected_answer": "Hàng giả/nhái, sản phẩm bất hợp pháp, vi phạm sở hữu trí tuệ, và các mặt hàng nằm trong danh sách cấm của sàn.",
     "expected_context": "Trang Product Listing Regulations, mục Prohibited Content"
+  },
+  {
+    "question": "Ai được quyền Trả hàng COM (trả hàng khi sản phẩm còn nguyên vẹn nhưng người mua không còn nhu cầu)?",
+    "expected_answer": "Chỉ Người Mua hợp lệ: thành viên chương trình khách hàng thân thiết Shopee hạng Vàng/Kim Cương, hoặc người đang sử dụng Gói ShopeeVIP.",
+    "expected_context": "Chính Sách Trả Hàng và Hoàn Tiền (tra_hang_hoan_tien.md), Điều 4.1"
+  },
+  {
+    "question": "Hạn mức Trả hàng COM mỗi tháng đối với người dùng Gói ShopeeVIP là bao nhiêu?",
+    "expected_answer": "15 (mười lăm) lần trong mỗi tháng dương lịch, tính từ thời điểm đăng ký Gói ShopeeVIP thành công.",
+    "expected_context": "Chính Sách Trả Hàng và Hoàn Tiền (tra_hang_hoan_tien.md), Điều 4.2.b"
+  },
+  {
+    "question": "Khi Người Bán tự đề xuất hoàn tiền ngay mà không cần nhận lại sản phẩm, số tiền hoàn tối thiểu là bao nhiêu?",
+    "expected_answer": "Không được thấp hơn 50% giá trị của Sản Phẩm Hoàn Trả; nếu Shopee nhận khiếu nại vì hoàn thấp hơn mức này, Shopee có quyền cấn trừ phần chênh lệch từ Số Dư Tài Khoản Shopee của Người Bán.",
+    "expected_context": "Chính Sách Trả Hàng và Hoàn Tiền (tra_hang_hoan_tien.md), Điều 9.5"
+  },
+  {
+    "question": "Người mua cần chuẩn bị bằng chứng gì khi gửi trả sản phẩm cho Shopee?",
+    "expected_answer": "Bắt buộc quay video và/hoặc chụp ảnh sản phẩm ngay khi nhận hàng và trong lúc đóng gói Sản Phẩm Hoàn Trả, để làm bằng chứng đối chiếu/khiếu nại về sau.",
+    "expected_context": "Chính Sách Trả Hàng và Hoàn Tiền (tra_hang_hoan_tien.md), Điều 6"
+  },
+  {
+    "question": "Với đơn hàng thanh toán COD hoặc chuyển khoản ngân hàng, người mua cần làm gì trước khi có thể yêu cầu trả hàng/hoàn tiền?",
+    "expected_answer": "Phải liên kết tài khoản Shopee với phương thức nhận hoàn tiền hợp lệ (ví dụ Tài Khoản Ngân Hàng và/hoặc Ví ShopeePay); nếu chưa liên kết thành công thì không thể thực hiện yêu cầu trả hàng/hoàn tiền.",
+    "expected_context": "Chính Sách Trả Hàng và Hoàn Tiền (tra_hang_hoan_tien.md), Điều 3.3"
+  },
+  {
+    "question": "Người Bán phải chịu chi phí vận chuyển hoàn trả sản phẩm trong những trường hợp nào?",
+    "expected_answer": "Khi đơn trả hàng/hoàn tiền được Shopee chấp thuận mà không do lỗi của Người Mua hoặc đơn vị vận chuyển, khi đơn giao không thành công, và các trường hợp ngoại lệ khác theo quyết định của Shopee.",
+    "expected_context": "Chính Sách Trả Hàng và Hoàn Tiền (tra_hang_hoan_tien.md), Điều 7.1"
+  },
+  {
+    "question": "Hình ảnh sản phẩm do chính Người Bán tự chụp phải chiếm tối thiểu bao nhiêu phần trăm diện tích ảnh?",
+    "expected_answer": "Sản phẩm thật phải chiếm ít nhất 40% diện tích toàn ảnh.",
+    "expected_context": "Quy Định Về Đăng Bán Sản Phẩm (dang_ban_san_pham.md), Mục C.1.b"
+  },
+  {
+    "question": "Shopee có thể áp dụng những biện pháp xử lý nào khi Người Bán vi phạm quy định đăng bán sản phẩm?",
+    "expected_answer": "Xóa/khóa/tạm ẩn sản phẩm; giới hạn hoặc khóa tài khoản; yêu cầu đền bù thiệt hại cho người mua; cấn trừ tiền từ Số dư Tài Khoản Shopee; khóa tính năng rút tiền; cung cấp thông tin cho cơ quan nhà nước; hoặc khởi kiện tại Tòa án.",
+    "expected_context": "Quy Định Về Đăng Bán Sản Phẩm (dang_ban_san_pham.md), Mục E"
+  },
+  {
+    "question": "Khi giao hàng, sản phẩm phải còn ít nhất bao nhiêu phần trăm và bao nhiêu ngày hạn sử dụng?",
+    "expected_answer": "Người Bán chỉ được bán hàng hóa khi giao đi còn ít nhất 30% thời hạn sử dụng và còn ít nhất 30 ngày tính đến ngày hết hạn.",
+    "expected_context": "Quy Định Về Đăng Bán Sản Phẩm (dang_ban_san_pham.md), Mục D.2.a"
+  },
+  {
+    "question": "Vi phạm Chính Sách Cấm/Hạn Chế Sản Phẩm của Shopee có thể dẫn đến những chế tài gì?",
+    "expected_answer": "Sản phẩm bị xóa; tài khoản bị giới hạn quyền, đình chỉ hoặc bị xóa; cấn trừ số dư và phong tỏa quyền rút tiền từ tài khoản Shopee; và các chế tài khác như phạt hành chính, xử lý hình sự hoặc bồi thường thiệt hại.",
+    "expected_context": "Chính Sách Cấm/Hạn Chế Sản Phẩm (cam_han_che_san_pham.md), Mục 3"
+  },
+  {
+    "question": "Tiền ảo như Bitcoin có được phép đăng bán trên Shopee không?",
+    "expected_answer": "Không. Tiền ảo (Bitcoin, Pi,...) nằm trong danh mục dịch vụ bất hợp pháp bị cấm mua bán trên Shopee.",
+    "expected_context": "Chính Sách Cấm/Hạn Chế Sản Phẩm (cam_han_che_san_pham.md), Mục 4.4.a"
+  },
+  {
+    "question": "Nội dung do Công Cụ AI của Shopee tạo ra (AIGC) có độ tin cậy và mục đích sử dụng như thế nào?",
+    "expected_answer": "AIGC chỉ được cung cấp cho mục đích thông tin, không phải là ý kiến, khuyến nghị đầu tư, tài chính hay pháp lý; Shopee không đảm bảo tính chính xác, độ tin cậy hay đầy đủ của AIGC, người dùng chịu toàn bộ rủi ro khi phụ thuộc vào đó.",
+    "expected_context": "Điều Khoản Dịch Vụ Shopee AI (shopee_AI.md), Điều 2.1-2.2"
+  },
+  {
+    "question": "Nội dung do AI của bên thứ ba tạo ra khi đăng trên Shopee cần tuân thủ yêu cầu gì?",
+    "expected_answer": "Phải được dán nhãn rõ là nội dung do AI tạo ra (AIGC của Bên Thứ Ba), và người đăng chịu trách nhiệm bồi thường cho Shopee nếu phát sinh khiếu nại liên quan.",
+    "expected_context": "Điều Khoản Dịch Vụ Shopee AI (shopee_AI.md), Điều 3.3"
+  },
+  {
+    "question": "Đề xuất sửa đổi Luật Hải quan đối với hàng hóa thương mại điện tử giá trị nhỏ, số lượng giao dịch lớn có nội dung gì?",
+    "expected_answer": "Đề nghị áp dụng thủ tục hải quan điện tử rút gọn trên cơ sở quản lý rủi ro và công nghệ thông tin để tránh ùn tắc thông quan, đồng thời yêu cầu xác thực định danh điện tử khi mua bán hàng hóa xuyên biên giới qua thương mại điện tử (có thể giới hạn theo ngưỡng giá trị giao dịch).",
+    "expected_context": "Bài báo VnExpress: Đề xuất rút gọn thủ tục hải quan với hàng hóa giá trị nhỏ qua thương mại điện tử (article_04.md)"
+  },
+  {
+    "question": "Theo phản ánh của đại biểu Quốc hội, quy trình khiếu nại hải quan hiện nay kéo dài bao lâu?",
+    "expected_answer": "Khoảng 30-45 ngày theo quy định hiện hành, khiến hàng hóa bị giữ lại cửa khẩu và gây thiệt hại cho doanh nghiệp.",
+    "expected_context": "Bài báo VnExpress: Đề xuất rút gọn thủ tục hải quan với hàng hóa giá trị nhỏ qua thương mại điện tử (article_04.md)"
+  },
+  {
+    "question": "Nếu khách hàng không có mặt khi giao hàng, TikiNOW Logistics giao lại tối đa mấy lần và có tính thêm phí không? Nếu hàng bị trả về kho thì phí hoàn hàng tính thế nào?",
+    "expected_answer": "TikiNOW giao lại tối đa 3 lần và không thu thêm phí cho các lần giao lại. Nếu giao không thành công và hàng được trả về kho, phí hoàn hàng được tính bằng 50% phí giao hàng chiều đi.",
+    "expected_context": "TikiNOW Logistics — Trung tâm Trợ giúp, mục Dịch vụ Giao hàng (article_06.md)"
+  },
+  {
+    "question": "TIKINOW phải thông báo cho Bộ Công an trong bao lâu sau khi phát hiện vi phạm về bảo vệ dữ liệu cá nhân?",
+    "expected_answer": "Chậm nhất là 72 giờ sau khi phát hiện sự cố, TIKINOW sẽ thông báo cho Khách hàng và Bộ Công an (Cục An ninh mạng và phòng, chống tội phạm sử dụng công nghệ cao).",
+    "expected_context": "TikiNOW Logistics — Chính sách xử lý dữ liệu cá nhân (article_03.md), Mục VII"
   }
 ]
